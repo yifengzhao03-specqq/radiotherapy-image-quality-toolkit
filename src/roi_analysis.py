@@ -92,3 +92,30 @@ def summarize_analysis(
         "SNR": snr,
         "CNR": cnr
     }
+
+def calculate_circular_roi_statistics(
+    image,
+    center_x,
+    center_y,
+    radius
+):
+    """
+    Calculate mean and standard deviation inside a circular ROI.
+    """
+
+    y, x = np.ogrid[
+        :image.shape[0],
+        :image.shape[1]
+    ]
+
+    mask = (
+        (x - center_x) ** 2
+        + (y - center_y) ** 2
+    ) <= radius ** 2
+
+    roi_pixels = image[mask]
+
+    mean = np.mean(roi_pixels)
+    std = np.std(roi_pixels)
+
+    return mean, std
