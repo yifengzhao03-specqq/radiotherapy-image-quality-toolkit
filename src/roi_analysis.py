@@ -119,3 +119,44 @@ def calculate_circular_roi_statistics(
     std = np.std(roi_pixels)
 
     return mean, std
+
+def calculate_background_subtracted_metrics(
+    target_mean,
+    target_std,
+    background_mean,
+    background_std
+):
+    """
+    Calculate signal difference, background-subtracted SNR,
+    and CNR.
+
+    Background-subtracted SNR:
+        |target_mean - background_mean| / target_std
+
+    CNR:
+        |target_mean - background_mean| / background_std
+    """
+
+    signal_difference = abs(
+        target_mean - background_mean
+    )
+
+    if target_std != 0:
+        background_subtracted_snr = (
+            signal_difference / target_std
+        )
+    else:
+        background_subtracted_snr = float("nan")
+
+    if background_std != 0:
+        cnr = (
+            signal_difference / background_std
+        )
+    else:
+        cnr = float("nan")
+
+    return (
+        signal_difference,
+        background_subtracted_snr,
+        cnr
+    )
