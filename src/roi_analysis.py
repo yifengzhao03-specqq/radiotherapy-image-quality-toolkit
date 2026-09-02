@@ -53,3 +53,42 @@ def calculate_cnr(
     cnr = abs(target_mean - background_mean) / background_std
 
     return cnr
+def summarize_analysis(
+    image,
+    target_coords,
+    background_coords
+):
+    """
+    Return a summary of target/background ROI statistics,
+    SNR, and CNR.
+    """
+
+    tx1, tx2, ty1, ty2 = target_coords
+    bx1, bx2, by1, by2 = background_coords
+
+    target_mean, target_std = calculate_roi_statistics(
+        image, tx1, tx2, ty1, ty2
+    )
+
+    background_mean, background_std = calculate_roi_statistics(
+        image, bx1, bx2, by1, by2
+    )
+
+    snr = calculate_snr(
+        image, tx1, tx2, ty1, ty2
+    )
+
+    cnr = calculate_cnr(
+        image,
+        target_coords,
+        background_coords
+    )
+
+    return {
+        "Target Mean": target_mean,
+        "Target SD": target_std,
+        "Background Mean": background_mean,
+        "Background SD": background_std,
+        "SNR": snr,
+        "CNR": cnr
+    }
