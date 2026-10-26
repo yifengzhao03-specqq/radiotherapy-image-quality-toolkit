@@ -1,563 +1,251 @@
 # Radiotherapy Image Quality Toolkit
 
-A Python-based toolkit for quantitative analysis and visualization of DICOM images, with a focus on radiotherapy and phantom image-quality assessment.
+**A Python toolkit for quantitative DICOM image analysis, interactive region-of-interest (ROI) selection, and experimental image-based ROI localization in radiotherapy phantom studies.**
 
-The project provides reusable tools for DICOM loading, ROI-based image analysis, interactive circular ROI selection, image windowing, batch phantom analysis, and automated result export.
+The toolkit was developed to support reproducible analysis of radiotherapy imaging data, particularly comparisons of image quality under different acquisition and irradiation conditions. It combines an interactive DICOM viewer, circular and rectangular ROI measurements, batch reporting, and early-stage computer-vision methods for phantom localization.
 
----
+> **Development status:** Manual ROI analysis and interactive visualization are available. Translation-only image registration and reference-guided ball-bearing (BB) detection are **experimental prototypes**. Fully automatic, validated ROI selection is **not yet implemented**.
+>
+> **Research software only.** This toolkit has not been clinically validated and must not be used for patient-care or treatment decisions.
 
-## Features
+## Features and status
 
-### DICOM Processing
+| Component | Capabilities | Status |
+| --- | --- | --- |
+| DICOM processing | Read DICOM pixel data; apply rescale slope/intercept when available | Implemented |
+| Interactive image viewer | Grayscale display, live window level/width (WL/WW), zoom, pan | Implemented (upgraded viewer) |
+| Manual ROI selection | Independently select circular target and background ROIs | Implemented |
+| Quantitative analysis | ROI mean and SD, signal difference, background-subtracted SNR, CNR | Implemented |
+| Batch analysis | Analyze multiple `.dcm` files, export CSV results and annotated figures | Implemented (manual ROIs) |
+| Image registration | Estimate 2D translations between images using phase cross-correlation | Experimental |
+| Automatic BB localization | Reference-guided, local Difference-of-Gaussians (DoG) candidate detection | Experimental; human review required |
+| Fully automated ROI analysis | Automatically determine target **and** background ROIs for an image batch | Planned |
 
-- Load DICOM images using `pydicom`
-- Extract image pixel data for quantitative analysis
-- Support DICOM intensity rescaling when applicable
-- Inspect radiotherapy and phantom imaging data
+## Intended applications
 
-### Image Visualization
+The current workflows are being explored with phantom images, including:
 
-- Display grayscale DICOM images
-- Apply Window Level (WL) and Window Width (WW) for visualization
-- Keep visualization windowing separate from quantitative pixel analysis
+- **Winston–Lutz phantom:** imaging of a ball-bearing target.
+- **Alderson RANDO thorax phantom:** anthropomorphic thorax imaging with an externally placed metal BB as a target marker.
 
-### ROI Analysis
+These phantoms have different backgrounds and target geometries. Select reference and test images **from the same phantom** and with compatible imaging geometry. The current software does not automatically identify the phantom type or establish a universally valid background ROI.
 
-- Rectangular ROI analysis
-- Interactive circular ROI selection
-- Target and background ROI selection
-- ROI visualization on DICOM images
+## Project layout
 
-### Quantitative Image-Quality Metrics
-
-- ROI mean
-- ROI standard deviation
-- Signal difference
-- Background-subtracted SNR
-- Contrast-to-noise ratio (CNR)
-
-### Batch Phantom Analysis
-
-- Process multiple phantom DICOM images
-- Manually select target and background circular ROIs for each image
-- Automatically calculate image-quality metrics
-- Export quantitative results to CSV
-- Automatically save annotated ROI figures
-
----
-
-## Project Structure
+The structure below includes the original analysis code and the new experimental modules. Local input/output folders are created or populated when running the workflows.
 
 ```text
 radiotherapy-image-quality-toolkit/
-│
-├── notebooks/
-│   └── image_quality_demo.ipynb
-│
 ├── src/
 │   ├── dicom_reader.py
 │   ├── roi_analysis.py
-│   ├── roi_selector.py
+│   ├── roi_selector.py                 # Legacy manual selector
+│   ├── interactive_roi_selector.py     # Upgraded interactive viewer
 │   ├── visualization.py
-│   └── batch_analysis.py
-│
-├── output/
-│   ├── batch_phantom_results.csv
-│   └── batch_roi_figures/
-│
-├── test_data/
-│
-├── test_roi_selector.py
+│   ├── batch_analysis.py
+│   ├── image_registration.py          # Experimental
+│   └── bb_detector.py                 # Experimental
 ├── batch_manual_roi_analysis.py
+├── test_roi_selector.py
+├── test_image_registration.py         # Experimental example
+├── test_bb_detection.py               # Experimental example
+├── install_roi_ui.py                  # One-time upgrade helper (if needed)
+├── test_data/                         # Local DICOM files; excluded from Git
+├── output/                            # Locally generated results; excluded from Git
+├── docs/
 ├── requirements.txt
-├── .gitignore
 └── README.md
 ```
 
----
+> This README describes the **upgraded working version**. Before publishing, include the new Python files listed above and the updated `batch_manual_roi_analysis.py` in the same commit. The published repository may not contain every file until you push your local changes.
 
-## Technologies
+## Requirements and installation
 
-- Python
-- NumPy
-- pandas
-- matplotlib
-- pydicom
-- Jupyter Notebook
+- Python **3.10+** recommended
+- A Python environment with a working Matplotlib interactive GUI backend for the ROI viewer
+- Windows, macOS, or Linux with desktop display support for interactive annotation
 
----
-
-## Installation
-
-Clone the repository and install the required packages:
+Clone the repository:
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/yifengzhao03-specqq/radiotherapy-image-quality-toolkit.git
+cd radiotherapy-image-quality-toolkit
 ```
 
-Current dependencies include:
+Create a virtual environment (recommended):
 
-```text
-pydicom
-numpy
-matplotlib
-pandas
+```bash
+python -m venv .venv
 ```
 
----
+Activate it on Windows PowerShell:
 
-## Basic DICOM Workflow
-
-### Load a DICOM Image
-
-```python
-from dicom_reader import load_dicom
-
-ds, image = load_dicom("example.dcm")
+```powershell
+.\.venv\Scripts\Activate.ps1
 ```
 
-### Display the Image
+Or on macOS/Linux:
 
-```python
-from visualization import show_dicom_image
-
-show_dicom_image(
-    image,
-    title="Example DICOM Image"
-)
+```bash
+source .venv/bin/activate
 ```
 
----
+Install dependencies:
 
-## Window Level and Window Width
-
-Window Level and Window Width can be applied to improve image visualization.
-
-```python
-show_dicom_image(
-    image,
-    title="Windowed Phantom Image",
-    window_level=65480,
-    window_width=200
-)
+```bash
+python -m pip install -r requirements.txt
 ```
 
-Windowing is used for visualization only.
+Core dependencies are `pydicom`, `numpy`, `matplotlib`, `pandas`, `scipy`, and `scikit-image`. Some compressed DICOM transfer syntaxes may require additional pixel-data decoding packages.
 
-The original image values are preserved for quantitative analysis.
+> **Filename note:** The repository originally used the misspelled `requitements.txt`. Rename it to **`requirements.txt`** and include `scipy` and `scikit-image` before publishing this update.
 
-This separation ensures that changing display contrast does not change measured ROI statistics.
+## Quick start: manual ROI batch analysis
 
----
-
-## Rectangular ROI Analysis
-
-The toolkit supports basic rectangular ROI analysis.
-
-```python
-from roi_analysis import (
-    calculate_roi_statistics,
-    calculate_snr
-)
-
-x1, x2 = 40, 80
-y1, y2 = 40, 80
-
-roi_mean, roi_std = calculate_roi_statistics(
-    image,
-    x1,
-    x2,
-    y1,
-    y2
-)
-
-snr = calculate_snr(
-    image,
-    x1,
-    x2,
-    y1,
-    y2
-)
-
-print("ROI Mean:", roi_mean)
-print("ROI SD:", roi_std)
-print("SNR:", snr)
-```
-
----
-
-## Interactive Circular ROI Selection
-
-The toolkit supports interactive selection of circular target and background ROIs.
-
-Each circular ROI is defined using two mouse clicks:
-
-1. Click the ROI center.
-2. Click a point on the ROI boundary.
-
-The radius is then calculated automatically.
-
-Example:
-
-```python
-from roi_selector import select_two_circular_rois
-
-target_circle, background_circle = select_two_circular_rois(
-    image,
-    window_level=65480,
-    window_width=200
-)
-```
-
-The target ROI is displayed in red and the background ROI in blue.
-
----
-
-## Circular ROI Statistics
-
-Circular ROI statistics are calculated using the original image pixel values.
-
-```python
-from roi_analysis import calculate_circular_roi_statistics
-
-target_mean, target_std = calculate_circular_roi_statistics(
-    image,
-    target_circle["center_x"],
-    target_circle["center_y"],
-    target_circle["radius"]
-)
-
-background_mean, background_std = calculate_circular_roi_statistics(
-    image,
-    background_circle["center_x"],
-    background_circle["center_y"],
-    background_circle["radius"]
-)
-```
-
-The analysis returns:
-
-- ROI mean
-- ROI standard deviation
-
----
-
-## Image-Quality Metrics
-
-Some radiotherapy and phantom images may contain a substantial baseline intensity offset.
-
-In these cases, a conventional metric such as:
-
-```text
-SNR = Mean / Standard Deviation
-```
-
-may produce misleadingly large values because the image baseline contributes strongly to the mean.
-
-For this reason, the phantom workflow uses background-subtracted metrics.
-
-### Signal Difference
-
-```text
-Signal Difference =
-| Target Mean - Background Mean |
-```
-
-### Background-Subtracted SNR
-
-```text
-Background-Subtracted SNR =
-| Target Mean - Background Mean |
----------------------------------
-            Target SD
-```
-
-### Contrast-to-Noise Ratio
-
-```text
-CNR =
-| Target Mean - Background Mean |
----------------------------------
-         Background SD
-```
-
-These metrics reduce the influence of a large baseline offset and provide a more meaningful comparison between target and background regions.
-
-Example:
-
-```python
-from roi_analysis import calculate_background_subtracted_metrics
-
-(
-    signal_difference,
-    background_subtracted_snr,
-    cnr
-) = calculate_background_subtracted_metrics(
-    target_mean,
-    target_std,
-    background_mean,
-    background_std
-)
-
-print("Signal Difference:", signal_difference)
-print(
-    "Background-Subtracted SNR:",
-    background_subtracted_snr
-)
-print("CNR:", cnr)
-```
-
----
-
-## Phantom DICOM Analysis
-
-The toolkit can be used to analyze phantom DICOM images using manually selected circular ROIs.
-
-A typical workflow is:
-
-```text
-Load Phantom DICOM
-        ↓
-Apply WL / WW for visualization
-        ↓
-Select Target Circular ROI
-        ↓
-Select Background Circular ROI
-        ↓
-Calculate ROI Statistics
-        ↓
-Calculate Signal Difference
-        ↓
-Calculate Background-Subtracted SNR
-        ↓
-Calculate CNR
-        ↓
-Save Annotated Figure
-        ↓
-Export Quantitative Results
-```
-
----
-
-## Batch Phantom Analysis
-
-Multiple phantom DICOM images can be processed sequentially using:
+1. Place your locally permitted `.dcm` files directly in `test_data/` (not in a nested subfolder).
+2. From the repository root, run:
 
 ```bash
 python batch_manual_roi_analysis.py
 ```
 
-For each image, the program:
+3. For each image, use the viewer to inspect the target and background regions, then confirm both ROIs.
+4. Review the resulting CSV and annotated images in `output/`.
 
-1. Loads the DICOM image.
-2. Applies the selected Window Level and Window Width for display.
-3. Prompts the user to select a target circular ROI.
-4. Prompts the user to select a background circular ROI.
-5. Calculates target ROI mean and standard deviation.
-6. Calculates background ROI mean and standard deviation.
-7. Calculates signal difference.
-8. Calculates background-subtracted SNR.
-9. Calculates CNR.
-10. Saves an annotated ROI figure.
-11. Adds the quantitative results to the batch results table.
+### Using the upgraded interactive viewer
 
----
+The upgraded viewer keeps image navigation separate from ROI drawing:
 
-## Batch Analysis Output
+1. **View mode:** Zoom using the mouse wheel or use the Matplotlib toolbar to pan/zoom without placing ROI points.
+2. **WL / WW controls:** Adjust the sliders, enter values, or use **Auto WL/WW** to set a display range from image intensities.
+3. **Target ROI:** Click **Target ROI**, then click its center and boundary to define the radius.
+4. **Background ROI:** Click **Background ROI**, then select its center and boundary.
+5. **Confirm:** Review both circles and click **Confirm** to continue batch processing. **Clear** restarts selection, and **Cancel** exits without confirming.
 
-The batch workflow automatically generates:
+If `batch_manual_roi_analysis.py` still imports `roi_selector` instead of `interactive_roi_selector`, the upgraded UI has not yet been connected. With `src/interactive_roi_selector.py` and `install_roi_ui.py` present, run the one-time helper:
+
+```bash
+python install_roi_ui.py
+```
+
+The helper makes a backup of the previous batch script. Review the changes before committing and keep backup files out of the public repository.
+
+**Important:** WL and WW affect **display only**. All quantitative metrics are calculated from the DICOM pixel array (including DICOM rescale parameters when present), **not** from the windowed display image.
+
+## Quantitative image-quality metrics
+
+Let the target ROI have mean intensity `μT` and standard deviation `σT`; let the background ROI have mean `μB` and standard deviation `σB`.
+
+| Metric | Definition |
+| --- | --- |
+| Signal difference | `abs(μT − μB)` |
+| Background-subtracted SNR | `abs(μT − μB) / σT` |
+| Contrast-to-noise ratio (CNR) | `abs(μT − μB) / σB` |
+
+For these definitions, a zero ROI standard deviation produces an undefined ratio (`NaN`) rather than a finite value. The toolkit also contains a basic rectangular-ROI SNR calculation (`mean / SD`).
+
+**Interpretation caveat:** The SNR and CNR definitions above are the definitions implemented by this project; they are not universal across the medical-imaging literature. ROI size, placement, local anatomy, and background heterogeneity can affect the results. For controlled comparisons, establish consistent ROI selection rules within each phantom and acquisition protocol.
+
+### Output files
 
 ```text
 output/
-│
 ├── batch_phantom_results.csv
-│
 └── batch_roi_figures/
-    ├── image_01_roi.png
-    ├── image_02_roi.png
-    ├── image_03_roi.png
+    ├── <dicom_stem>_roi.png
     └── ...
 ```
 
-The CSV file includes:
+The CSV records the source filename, selected WL/WW, ROI centers/radii, target and background mean/SD, signal difference, background-subtracted SNR, and CNR. Saved figures show the selected ROI locations.
 
-- File name
-- Window Level
-- Window Width
-- Target ROI center coordinates
-- Target ROI radius
-- Target mean
-- Target standard deviation
-- Background ROI center coordinates
-- Background ROI radius
-- Background mean
-- Background standard deviation
-- Signal difference
-- Background-subtracted SNR
-- CNR
+## Experimental workflow 1: image registration
 
----
+`src/image_registration.py` uses **phase cross-correlation** to estimate the translation between two 2D images. The demo transfers reference ROI coordinates into the moving-image coordinate system and optionally compares them with manual ROIs recorded in the CSV.
 
-## Example Output
-
-The figure below shows an example phantom image with manually selected circular ROIs.
-
-- **Red circle:** Target ROI
-- **Blue circle:** Background ROI
-- Window level and window width are applied for visualization only.
-
-![Example Phantom ROI Analysis](docs/images/phantom_roi_example.png)
-
-
-
-## Notebook Demonstration
-
-The repository also includes a Jupyter Notebook:
-
-```text
-notebooks/image_quality_demo.ipynb
+```bash
+python test_image_registration.py --reference "10FFF_0_RI.dcm" --moving "10x_0_RI.dcm"
 ```
 
-The notebook demonstrates the basic workflow:
+Replace the example filenames with your own compatible images. The script reads from `test_data/`, uses `output/batch_phantom_results.csv` when available, and saves:
 
-1. Load a sample DICOM image.
-2. Display the image.
-3. Define rectangular ROIs.
-4. Calculate ROI statistics.
-5. Calculate SNR and CNR.
-6. Display target and background ROIs.
-7. Load phantom DICOM test data.
+```text
+output/registration_preview.png
+```
 
-The reusable analysis functions are stored in the `src/` directory rather than being implemented directly inside the notebook.
+- Estimated shifts are reported as `(dx, dy)` in pixels: **positive `dx` = right; positive `dy` = down** for ROI movement from reference to moving image.
+- The current method models **translation only**; it does not model rotation, scaling, or geometric distortion.
+- Images must have matching dimensions and compatible orientation and geometry.
+- Visually inspect the results; a reported shift is **not** proof of successful registration.
+- ROI statistics should be calculated in the original moving-image pixels, avoiding unnecessary image interpolation.
 
----
+## Experimental workflow 2: reference-guided BB detection
 
-## Source Modules
+`src/bb_detector.py` uses a **Difference-of-Gaussians (DoG)** response to locate a bright or dark BB-like candidate **near a known reference center**. This is a *local, reference-guided detector*, **not** a whole-image BB finder.
 
-### `dicom_reader.py`
+**Prerequisites:**
 
-Handles:
+- Two images acquired with the **same phantom** and compatible geometry in `test_data/`.
+- An existing `output/batch_phantom_results.csv` with manually recorded ROI coordinates for **both** images. The reference coordinates guide detection; the test-image manual coordinates are held out for comparison.
 
-- DICOM loading
-- Pixel array extraction
-- Image intensity rescaling when applicable
+Run:
 
-### `roi_analysis.py`
+```bash
+python test_bb_detection.py --reference "10FFF_0_RI.dcm" --test "10x_0_RI.dcm"
+```
 
-Handles:
+To adjust the maximum local search displacement, for example:
 
-- Rectangular ROI statistics
-- Circular ROI statistics
-- SNR calculations
-- Signal difference
-- Background-subtracted SNR
-- CNR
+```bash
+python test_bb_detection.py --reference "10FFF_0_RI.dcm" --test "10x_0_RI.dcm" --search-radius 6
+```
 
-### `roi_selector.py`
+The script produces:
 
-Handles:
+```text
+output/
+├── bb_detection_preview.png
+└── bb_detection_test_result.csv
+```
 
-- Interactive circular ROI selection
-- Target ROI selection
-- Background ROI selection
+The preview overlays the automated BB candidate and held-out manual center. The CSV includes the predicted and manual coordinates, center difference (pixels), bright/dark polarity, response score, and QC status.
 
-### `visualization.py`
+**Detection limitations:**
 
-Handles:
+- The response score is **not** a probability of correct detection.
+- A status such as `candidate_requires_review` means the candidate still needs **human inspection**, not that it passed validation.
+- Bone structures, noise, artifacts, and changes in image contrast can generate misleading peaks.
+- In one initial test, the candidate differed from the manual center by approximately **4.20 pixels**; this is a debugging observation, **not** a validated accuracy estimate.
+- Automated **background ROI placement**, fully automatic target ROI generation, and batch SNR/CNR analysis based on detected centers are **not yet part of this prototype**.
 
-- DICOM image display
-- Window Level / Window Width
-- ROI visualization
-- Target/background ROI display
+## Validation roadmap
 
-### `batch_analysis.py`
+The next phase is to compare fixed-coordinate ROI propagation, translation-based registration, computer-vision BB detection, and a future hybrid method using the **same-phantom** image groups. Planned evaluations include:
 
-Provides reusable functionality for multi-image analysis.
+1. **Localization error:** Difference from carefully reviewed reference labels, in pixels (and mm when pixel spacing is reliable).
+2. **Measurement agreement:** Changes in ROI statistics, SNR, and CNR caused by localization method.
+3. **Repeatability:** Agreement between repeated manual annotations and automated methods.
+4. **Robustness:** Behavior under changes in scatter, noise, contrast, and controlled synthetic translations.
+5. **Failure handling:** Explicit reporting and manual review of uncertain detections, rather than silently accepting them.
 
----
+Planned development also includes standardized, phantom-specific background ROI rules, broader BB search strategies, and additional registration transforms if required by the imaging geometry.
 
-## Data Privacy
+## Data privacy and reproducibility
 
-DICOM files may contain sensitive metadata.
+DICOM headers can contain identifying information even when images are acquired with a phantom. **Do not commit patient-identifiable data, unreviewed DICOM headers, restricted research data, or sensitive generated results.** Check institutional policies before publishing example images.
 
-Clinical or patient-identifiable DICOM data should not be uploaded to a public GitHub repository.
-
-The `test_data/` directory should contain only:
-
-- appropriately de-identified data, or
-- non-patient phantom data
-
-Original clinical datasets are not required for the demonstration workflow.
-
-It is recommended that raw DICOM test data remain excluded from version control.
-
-Example `.gitignore` entries:
+The local `.gitignore` should exclude at least:
 
 ```gitignore
 test_data/
+output/
+.venv/
 __pycache__/
 *.pyc
+*.bak
 ```
 
----
+The repository's original `.gitignore` already excludes `test_data/` and `output/`; add the backup-file pattern if you keep the installer's `.bak` file locally. Ignore rules do not retroactively untrack previously committed files—verify with `git status` and `git ls-files` before pushing.
 
-## Design Principles
+## Project purpose
 
-This project separates image visualization from quantitative analysis.
-
-Window Level and Window Width are used only to improve visual interpretation and ROI placement.
-
-Quantitative calculations are performed using the underlying image pixel values rather than the windowed display image.
-
-The project also separates:
-
-```text
-User interaction
-        ↓
-ROI selection
-        ↓
-Image analysis
-        ↓
-Visualization
-        ↓
-Batch processing
-        ↓
-Data export
-```
-
-into reusable Python modules.
-
----
-
-## Purpose
-
-This project was developed as an independent computational medical physics portfolio project.
-
-The goal is to demonstrate practical programming skills relevant to medical physics, including:
-
-- Python programming
-- DICOM handling
-- medical image processing
-- quantitative image analysis
-- ROI-based analysis
-- interactive visualization
-- modular software development
-- automated batch processing
-- CSV data export
-- reproducible computational workflows
-
----
-
-## Future Development
-
-Potential future improvements include:
-
-- Automated phantom ROI detection
-- Additional image-quality metrics
-- ROI position reuse across related image sets
-- Automatic DICOM Window Center / Window Width detection
-- Improved command-line interface
-- Graphical user interface
-- Automated quality-control reporting
-- Additional radiotherapy imaging workflows
-- Treatment-plan and RT DICOM analysis
+This is an independently developed computational medical-physics software project focused on DICOM handling, quantitative image-quality assessment, interactive visualization, computer vision, and reproducible analysis workflows. Experimental modules are shared to document the development process and enable further algorithm evaluation, **not** to imply clinical readiness or established performance.

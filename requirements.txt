@@ -2,3 +2,5 @@ pydicom
 numpy
 matplotlib
 pandas
+scipy
+scikit-image

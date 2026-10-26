@@ -26,7 +26,7 @@ if str(src_path) not in sys.path:
 
 from dicom_reader import load_dicom
 
-from roi_selector import (
+from interactive_roi_selector import (
     select_two_circular_rois
 )
 
@@ -35,7 +35,6 @@ from roi_analysis import (
     calculate_background_subtracted_metrics
 )
 
-from visualization import apply_window
 
 
 # --------------------------------------------------
@@ -195,6 +194,10 @@ for index, file_path in enumerate(
         window_width=WINDOW_WIDTH
     )
 
+    # Use the settings actually selected in the viewer.
+    wl_used = target_circle["window_level"]
+    ww_used = target_circle["window_width"]
+
 
     # --------------------------------------------------
     # Target ROI statistics
@@ -251,10 +254,10 @@ for index, file_path in enumerate(
             file_path.name,
 
         "Window Level":
-            WINDOW_LEVEL,
+            wl_used,
 
         "Window Width":
-            WINDOW_WIDTH,
+            ww_used,
 
         "Target Center X":
             target_circle["center_x"],
@@ -305,11 +308,8 @@ for index, file_path in enumerate(
     # Prepare windowed image for saved figure
     # --------------------------------------------------
 
-    display_image = apply_window(
-        image,
-        WINDOW_LEVEL,
-        WINDOW_WIDTH
-    )
+    # Keep original pixel data; apply WL/WW only to rendering.
+    display_image = image
 
 
     # --------------------------------------------------
@@ -322,7 +322,9 @@ for index, file_path in enumerate(
 
     ax.imshow(
         display_image,
-        cmap="gray"
+        cmap="gray",
+        vmin=wl_used - ww_used / 2,
+        vmax=wl_used + ww_used / 2
     )
 
 
@@ -383,7 +385,7 @@ for index, file_path in enumerate(
 
     ax.set_title(
         f"{file_path.name}\n"
-        f"WL={WINDOW_LEVEL}, WW={WINDOW_WIDTH}"
+        f"WL={wl_used:.1f}, WW={ww_used:.1f}"
     )
 
     ax.axis(
