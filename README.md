@@ -1,10 +1,12 @@
 # Radiotherapy Image Quality Toolkit
 
+**Experimental release: v0.3.0-alpha — Hybrid BB localization and quality-control prototypes**
+
 **A Python toolkit for quantitative DICOM image analysis, interactive region-of-interest (ROI) selection, and experimental image-based ROI localization in radiotherapy phantom studies.**
 
-The toolkit was developed to support reproducible analysis of radiotherapy imaging data, particularly comparisons of image quality under different acquisition and irradiation conditions. It combines an interactive DICOM viewer, circular and rectangular ROI measurements, batch reporting, and early-stage computer-vision methods for phantom localization.
+The toolkit supports reproducible analysis of radiotherapy phantom images acquired under different imaging and irradiation conditions. It combines an interactive DICOM viewer, manual ROI statistics, batch reporting, and experimental, reference-guided BB localization with controlled validation scripts.
 
-> **Development status:** Manual ROI analysis and interactive visualization are available. Translation-only image registration and reference-guided ball-bearing (BB) detection are **experimental prototypes**. Fully automatic, validated ROI selection is **not yet implemented**.
+> **Development status:** Manual ROI analysis and interactive visualization are available. Translation-only registration, DoG candidate detection, background-corrected centroid / Gaussian center estimation, DoG-to-Gaussian hybrid localization (v3), and reference-calibrated width QC (v3.1) are **experimental prototypes**. Automatic target/background ROI generation and validated end-to-end analysis are **not yet implemented**.
 >
 > **Research software only.** This toolkit has not been clinically validated and must not be used for patient-care or treatment decisions.
 
@@ -18,7 +20,11 @@ The toolkit was developed to support reproducible analysis of radiotherapy imagi
 | Quantitative analysis | ROI mean and SD, signal difference, background-subtracted SNR, CNR | Implemented |
 | Batch analysis | Analyze multiple `.dcm` files, export CSV results and annotated figures | Implemented (manual ROIs) |
 | Image registration | Estimate 2D translations between images using phase cross-correlation | Experimental |
-| Automatic BB localization | Reference-guided, local Difference-of-Gaussians (DoG) candidate detection | Experimental; human review required |
+| BB candidate localization (v1) | Local, reference-guided Difference-of-Gaussians (DoG) | Experimental; human review required |
+| BB center refinement (v2) | Background-corrected centroid; Gaussian + background-plane fitting | Experimental |
+| Hybrid BB localization (v3) | DoG coarse candidate followed by Gaussian + background-plane refinement | Experimental; human review required |
+| Reference-width QC (v3.1) | Fit residual / polarity / candidate boundary checks plus reference-calibrated Gaussian sigma ratio | Experimental; no automatic pass |
+| Research validation scripts | Integer/subpixel simulated translations, interpolation comparisons, synthetic degradation/negative-control stress tests | Experimental; not clinical validation |
 | Fully automated ROI analysis | Automatically determine target **and** background ROIs for an image batch | Planned |
 
 ## Intended applications
@@ -32,32 +38,44 @@ These phantoms have different backgrounds and target geometries. Select referenc
 
 ## Project layout
 
-The structure below includes the original analysis code and the new experimental modules. Local input/output folders are created or populated when running the workflows.
+The layout below is the **intended release layout**. Confirm that each listed file exists in your working tree and is committed; documentation does not create or upload a file automatically.
 
 ```text
 radiotherapy-image-quality-toolkit/
+├── docs/images/                         # Only cleared, non-sensitive illustrations
+├── notebook/                            # Existing notebook folder
 ├── src/
 │   ├── dicom_reader.py
 │   ├── roi_analysis.py
-│   ├── roi_selector.py                 # Legacy manual selector
-│   ├── interactive_roi_selector.py     # Upgraded interactive viewer
+│   ├── roi_selector.py
+│   ├── interactive_roi_selector.py
 │   ├── visualization.py
 │   ├── batch_analysis.py
-│   ├── image_registration.py          # Experimental
-│   └── bb_detector.py                 # Experimental
+│   ├── image_registration.py           # Experimental
+│   ├── bb_detector.py                  # v1: DoG
+│   ├── bb_center_refinement.py         # v2: centroid / Gaussian
+│   ├── hybrid_bb_detector.py           # v3: DoG + Gaussian
+│   └── hybrid_bb_detector_qc_v31.py    # v3.1: extra reference-width QC
 ├── batch_manual_roi_analysis.py
 ├── test_roi_selector.py
-├── test_image_registration.py         # Experimental example
-├── test_bb_detection.py               # Experimental example
-├── install_roi_ui.py                  # One-time upgrade helper (if needed)
-├── test_data/                         # Local DICOM files; excluded from Git
-├── output/                            # Locally generated results; excluded from Git
-├── docs/
+├── test_image_registration.py
+├── test_bb_detection.py
+├── test_bb_refinement.py
+├── test_bb_displacement.py
+├── test_bb_hybrid.py
+├── test_bb_hybrid_displacement.py
+├── test_bb_subpixel_displacement.py
+├── test_bb_qc_validation.py
+├── test_bb_qc_v31.py
+├── install_roi_ui.py
+├── test_data/                           # Local DICOM data; ignored by Git
+├── output/                              # Generated figures/CSVs; ignored by Git
 ├── requirements.txt
+├── .gitignore
 └── README.md
 ```
 
-> This README describes the **upgraded working version**. Before publishing, include the new Python files listed above and the updated `batch_manual_roi_analysis.py` in the same commit. The published repository may not contain every file until you push your local changes.
+The detector examples currently use **reference images and manual ROI metadata for initialization/evaluation**; they do not constitute completely autonomous full-image BB detection.
 
 ## Requirements and installation
 
@@ -98,7 +116,6 @@ python -m pip install -r requirements.txt
 
 Core dependencies are `pydicom`, `numpy`, `matplotlib`, `pandas`, `scipy`, and `scikit-image`. Some compressed DICOM transfer syntaxes may require additional pixel-data decoding packages.
 
-> **Filename note:** The repository originally used the misspelled `requitements.txt`. Rename it to **`requirements.txt`** and include `scipy` and `scikit-image` before publishing this update.
 
 ## Quick start: manual ROI batch analysis
 
@@ -217,17 +234,57 @@ The preview overlays the automated BB candidate and held-out manual center. The 
 - In one initial test, the candidate differed from the manual center by approximately **4.20 pixels**; this is a debugging observation, **not** a validated accuracy estimate.
 - Automated **background ROI placement**, fully automatic target ROI generation, and batch SNR/CNR analysis based on detected centers are **not yet part of this prototype**.
 
-## Validation roadmap
+## Experimental workflow 3: BB center refinement and hybrid localization
 
-The next phase is to compare fixed-coordinate ROI propagation, translation-based registration, computer-vision BB detection, and a future hybrid method using the **same-phantom** image groups. Planned evaluations include:
+The v2 module (`src/bb_center_refinement.py`) estimates a candidate BB center from the local signal using a background-corrected centroid and a 2D Gaussian plus a sloping background plane. The v3 hybrid (`src/hybrid_bb_detector.py`) uses a DoG candidate **only for coarse localization**, then refines its center with the Gaussian model. The test-image manual annotation is used for **evaluation only**, not to provide the test-image center.
 
-1. **Localization error:** Difference from carefully reviewed reference labels, in pixels (and mm when pixel spacing is reliable).
-2. **Measurement agreement:** Changes in ROI statistics, SNR, and CNR caused by localization method.
-3. **Repeatability:** Agreement between repeated manual annotations and automated methods.
-4. **Robustness:** Behavior under changes in scatter, noise, contrast, and controlled synthetic translations.
-5. **Failure handling:** Explicit reporting and manual review of uncertain detections, rather than silently accepting them.
+From the repository root, with same-phantom, compatible-geometry DICOM images in `test_data/` and the associated `output/batch_phantom_results.csv` locally available:
 
-Planned development also includes standardized, phantom-specific background ROI rules, broader BB search strategies, and additional registration transforms if required by the imaging geometry.
+```bash
+python test_bb_refinement.py --reference "10FFF_0_RI.dcm" --test "10x_RI.dcm"
+python test_bb_hybrid.py --reference "10FFF_0_RI.dcm" --test "10x_RI.dcm"
+```
+
+These scripts write diagnostic CSV and figure outputs to the local `output/` folder. The coarse detection remains reference-guided, and success must be visually reviewed.
+
+## Experimental workflow 4: controlled localization validation
+
+Controlled translation tests are **software diagnostics**, not physical localization accuracy measurements:
+
+```bash
+# Integer-pixel translations of a single image
+python test_bb_hybrid_displacement.py --reference "10FFF_0_RI.dcm" --test "10x_RI.dcm"
+
+# Interpolated fractional-pixel translations (linear and cubic)
+python test_bb_subpixel_displacement.py --reference "10FFF_0_RI.dcm" --test "6FFF_RI.dcm"
+```
+
+The subpixel script compares interpolation methods and reports **shift-recovery error** (error in predicted displacement relative to that method's unshifted estimate) separately from **distance to a shifted manual annotation**. Neither metric alone is an independently measured physical BB-center error. Synthetic translation reuses the same underlying image and does not simulate real changes in projection, scatter, motion, or detector behavior.
+
+In a preliminary single-image subpixel test, the v3 hybrid produced mean shift-recovery discrepancies of approximately **0.0325 px (linear)** and **0.0423 px (cubic)** across eight non-zero simulated shifts. These values are **diagnostic, dataset-specific, and not validated accuracy claims**.
+
+## Experimental workflow 5: QC stress testing (v3 and v3.1)
+
+The core v3 detector provides heuristic warnings about polarity, fit residual, fitted width, and search-boundary candidates. The v3.1 **optional QC wrapper** (`src/hybrid_bb_detector_qc_v31.py`) adds a comparison of the fitted Gaussian width against an inspected, same-phantom, same-geometry trusted reference.
+
+```bash
+python test_bb_qc_validation.py --reference "10FFF_0_RI.dcm" --test "6FFF_RI.dcm"
+python test_bb_qc_v31.py --reference "10FFF_0_RI.dcm" --test "6FFF_RI.dcm"
+```
+
+The exploratory v3.1 sigma-ratio range is **0.70 to 1.40** relative to the trusted reference fit. This was selected during iterative development to investigate a simulated half-obscured BB, **not** established as a clinical acceptance interval. Synthetic cases include contrast reduction, added noise, partial masking, artificial BB removal, decoys, and uniform-image negatives. They are not equivalent to genuine BB-free acquisitions.
+
+- `candidate_requires_review`: A candidate was returned; **human review is still required**.
+- `low_confidence_requires_review`: Specific problems were flagged; **do not use the candidate for unattended quantitative analysis**.
+- `detection_failed`: The detector could not produce a usable candidate.
+
+**No current status means automatic/clinical acceptance.** Existing QC is a research prototype; thresholds have not been independently calibrated or validated.
+
+## Limitations and roadmap
+
+**Not yet implemented:** automatic target ROI generation; standardized phantom-specific background ROI placement; end-to-end unattended SNR/CNR analysis; universal phantom classification; validated clinical use.
+
+**Before considering broader use:** validate on held-out acquisitions and both phantom groups; test real repositioning, rotations and varying image quality; evaluate repeated blinded manual annotations; collect real BB-absent/decoy negatives; assess QC false alarms and missed detections; standardize ROI radius and background-placement rules; and verify agreement of downstream quantitative metrics.
 
 ## Data privacy and reproducibility
 
@@ -242,9 +299,10 @@ output/
 __pycache__/
 *.pyc
 *.bak
+*.backup
 ```
 
-The repository's original `.gitignore` already excludes `test_data/` and `output/`; add the backup-file pattern if you keep the installer's `.bak` file locally. Ignore rules do not retroactively untrack previously committed files—verify with `git status` and `git ls-files` before pushing.
+Ignore rules do **not** retroactively untrack committed files. This repository has previously shown a tracked `batch_manual_roi_analysis.py.before_roi_ui.bak`; review its contents and remove it from Git tracking before release if it is only a local backup. Check `git status` and `git ls-files` before pushing. Do not post unreviewed DICOM or restricted output data.
 
 ## Project purpose
 
